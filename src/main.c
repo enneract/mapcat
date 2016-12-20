@@ -118,15 +118,15 @@ int main(int argc, char **argv)
 			goto out;
 		}
 
-		if (!quiet)
-			map_print_stats(input->path, &part);
-
 		// team_* and info_* ents are kept only in the first part
 		if (map_postprocess(&part, (input != inputs))) {
 			map_free(&map);
 			map_free(&part);
 			goto out;
 		}
+
+		if (!quiet)
+			map_print_stats(input->path, &part);
 
 		if (map_merge(&map, &part)) {
 			error("error: couldn't merge %s into %s\n",

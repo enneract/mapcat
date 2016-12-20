@@ -408,8 +408,10 @@ no_brushes:
 		}
 
 		map->worldspawn = entity;
-	} else
+	} else {
 		elist_append(&map->entities, entity, list);
+		map->num_entities++;
+	}
 
 	return 0;
 error:
@@ -633,6 +635,7 @@ int map_postprocess(map_t *map, bool filter_team_ents)
 			    strncmp(entity->classname, "info_", 5))
 				continue;
 
+			map->num_entities--;
 			map->num_discarded_entities++;
 			elist_unlink(&map->entities, entity, list);
 			free_entity(entity);
