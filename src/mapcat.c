@@ -617,6 +617,83 @@ out:
 	return rv;
 }
 
+int map_postprocess(map_t *map, bool filter_team_ents)
+{
+	entity_t *entity;
+	entity_key_t *key;
+	char *prefix = NULL;
+
+	if (filter_team_ents) {
+		entity_t *next;
+
+		for (entity = map->entities; entity; entity = next) {
+			next = elist_next(entity, list);
+
+			if (strncmp(entity->classname, "team_", 5) &&
+			    strncmp(entity->classname, "info_", 5))
+				continue;
+
+			map->num_discarded_entities++;
+			elist_unlink(&map->entities, entity, list);
+			free_entity(entity);
+		}
+	}
+
+	if (map->worldspawn) {
+		entity_key_t *next;
+
+		for (key = map->worldspawn->keys; key; key = next) {
+			next = elist_next(key, list);
+
+			if (!strcmp(key->key, "mapcat_prefix")) {
+				// shouldn't happen, but just in case
+				// (to prevent memory leaks)
+				if (prefix)
+					free(prefix);
+
+				prefix = key->value;
+				elist_unlink(&map->worldspawn->keys, key, list);
+				free(key->key);
+				// key->value is freed later (as prefix)
+				free(key);
+			}
+		}
+	}
+
+	if (prefix) {
+		size_t prefix_len = strlen(prefix);
+
+		elist_for(entity, map->entities, list)
+		elist_for(key, entity->keys, list) {
+			char *new;
+			size_t value_len;
+
+			if (strcmp(key->key, "target") &&
+			    strcmp(key->key, "targetname"))
+				continue;
+
+			value_len = strlen(key->value);
+
+			new = malloc(value_len + prefix_len + 1);
+			if (!new) {
+				fprintf(stderr, "error: out of memory\n");
+				return 1;
+			}
+
+			memcpy(new, prefix, prefix_len);
+			memcpy(new + prefix_len, key->value, value_len);
+			new[prefix_len + value_len] = 0;
+
+			free(key->value);
+			key->value = new;
+		}
+
+		free(prefix);
+	}
+
+	return 0;
+}
+
 //RETURN VALUE
 //	always 0 (this function cannot fail (yet))
 // slave is left in invalid state after this function returns, do not use it
@@ -643,6 +720,8 @@ int map_merge(map_t *master, map_t *slave)
 	master->num_discarded_entities += slave->num_discarded_entities;
 	master->num_brushes += slave->num_brushes;
 	master->num_discarded_brushes += slave->num_discarded_brushes;
+	master->num_patches += slave->num_patches;
+	master->num_discarded_patches += slave->num_discarded_patches;
 
 	return 0;
 }

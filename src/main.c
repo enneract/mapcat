@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 
 	map_init(&map);
 
-	elist_for (input, inputs, list) {
+	elist_for(input, inputs, list) {
 		map_t part;
 
 		map_init(&part);
@@ -120,6 +120,13 @@ int main(int argc, char **argv)
 
 		if (!quiet)
 			map_print_stats(input->path, &part);
+
+		// team_* and info_* ents are kept only in the first part
+		if (map_postprocess(&part, (input != inputs))) {
+			map_free(&map);
+			map_free(&part);
+			goto out;
+		}
 
 		if (map_merge(&map, &part)) {
 			error("error: couldn't merge %s into %s\n",
