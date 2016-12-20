@@ -27,6 +27,11 @@ static inline elist_header_t *elist_header(void *entry, size_t offs)
 	return (elist_header_t*)((char*)entry + offs);
 }
 
+static inline const elist_header_t *elist_cheader(const void *entry, size_t offs)
+{
+	return (const elist_header_t*)((const char*)entry + offs);
+}
+
 static inline void elist_append_real(void **head, void *entry, size_t offs)
 {
 	elist_header_t *head_header, *entry_header;
@@ -56,8 +61,14 @@ elist_append_real((void**)(head), (entry), offsetin((entry), member))
 #define elist_next(entry, member) \
 (elist_header((entry), offsetin((entry), member))->next)
 
+#define elist_cnext(entry, member) \
+(elist_cheader((entry), offsetin((entry), member))->next)
+
 #define elist_for(iter, head, member) \
 for ((iter) = (head); (iter); (iter) = elist_next((iter), member))
+
+#define elist_cfor(iter, head, member) \
+for ((iter) = (head); (iter); (iter) = elist_cnext((iter), member))
 
 static inline void elist_unlink_real(void **head, void *entry, size_t offs)
 {
@@ -101,9 +112,10 @@ static inline void elist_append_list_real(void **head1, void *head2, size_t offs
 	if (!head2)
 		return;
 
-	head1_header = elist_header(head1, offs);
+	head1_header = elist_header(*head1, offs);
 	head2_header = elist_header(head2, offs);
 	last1_header = elist_header(head1_header->prev, offs);
+
 	head1_header->prev = head2_header->prev;
 	last1_header->next = head2;
 	head2_header->prev = head1_header->prev;

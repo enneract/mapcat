@@ -47,6 +47,7 @@ int main(int argc, char **argv)
 	int rv = 1, i;
 	input_file_t *inputs = NULL, *input, *next;
 	char *output = NULL;
+	map_t map;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
@@ -92,17 +93,40 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	elist_for (input, inputs, list)
-		if (mapcat_load(input->path))
+	map_init(&map);
+
+	elist_for (input, inputs, list) {
+		map_t part;
+
+		map_init(&part);
+
+		if (map_read(&part, input->path)) {
+			error("error: couldn't read %s\n", input->path);
 			goto out;
+		}
 
-	if (mapcat_save(output))
+		map_print_stats(input->path, &part);
+
+		if (map_merge(&map, &part)) {
+			error("error: couldn't merge %s into %s\n",
+			      input->path, output);
+			map_free(&map);
+			map_free(&part);
+			goto out;
+		}
+	}
+
+	map_print_stats(output, &map);
+
+	if (map_write(&map, output)) {
+		error("error: couldn't write %s\n", output);
+		map_free(&map);
 		goto out;
+	}
 
+	map_free(&map);
 	rv = 0;
 out:
-	mapcat_free();
-
 	for (input = inputs; input; input = next) {
 		next = elist_next(input, list);
 		free(input);

@@ -33,6 +33,8 @@ Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 #define PROGRAM_NAME "mapcat"
 #define PROGRAM_VERSION "0.1.0"
 
+#define MAPCAT_DISCARD_SHADER "common/discard"
+
 // common.c
 
 typedef struct {
@@ -81,6 +83,44 @@ int lexer_get_floats(lexer_state_t *ls, float *out, size_t count);
 
 // mapcat.c
 
-int mapcat_load(const char *path);
-int mapcat_save(const char *path);
-void mapcat_free(void);
+typedef struct {
+	float def[9];
+	char *shader;
+	float texmap[8];
+	elist_header_t list;
+} brush_face_t;
+
+typedef struct {
+	brush_face_t *faces;
+	elist_header_t list;
+} brush_t;
+
+typedef struct {
+	char *key;
+	char *value;
+	elist_header_t list;
+} entity_key_t;
+
+typedef struct {
+	char *classname;
+	brush_t *brushes;
+	entity_key_t *keys;
+
+	elist_header_t list;
+} entity_t;
+
+typedef struct {
+	entity_t *worldspawn;
+	entity_t *entities;
+
+	// note: num_entities doesn't include the worldspawn
+	size_t num_entities, num_discarded_entities;
+	size_t num_brushes, num_discarded_brushes;
+} map_t;
+
+void map_init(map_t *map);
+void map_free(map_t *map);
+int map_read(map_t *map, const char *path);
+int map_write(const map_t *map, const char *path);
+int map_merge(map_t *master, map_t *slave);
+void map_print_stats(const char *path, const map_t *map);
