@@ -41,6 +41,11 @@ int lexer_open(lexer_state_t *ls, const char *path, vstr_t *token)
 	return 0;
 }
 
+void lexer_close(lexer_state_t *ls)
+{
+	fclose(ls->fp);
+}
+
 //RETURN VALUES
 //	<0 on error
 //	0 on success
@@ -52,13 +57,10 @@ static int fill_buffer(lexer_state_t *ls)
 	read = fread(ls->buf, 1, sizeof(ls->buf), ls->fp);
 	debug("read = %zu\n", read);
 	if (read < sizeof(ls->buf)) {
-		if (ferror(ls->fp)) {
-			fclose(ls->fp);
+		if (ferror(ls->fp))
 			return -errno;
-		}
 
 		ls->eof = true;
-		fclose(ls->fp);
 		debug("no data left, ls->fp closed\n");
 	}
 

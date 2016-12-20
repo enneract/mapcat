@@ -74,6 +74,7 @@ typedef struct {
 } lexer_state_t;
 
 int lexer_open(lexer_state_t *ls, const char *path, vstr_t *token);
+void lexer_close(lexer_state_t *ls);
 int lexer_get_token(lexer_state_t *ls);
 int lexer_assert(lexer_state_t *ls, const char *match, const char *desc);
 int lexer_assert_or_eof(lexer_state_t *ls, const char *match, const char *desc);

@@ -413,6 +413,7 @@ int map_read(map_t *map, const char *path)
 	rv = 0;
 out:
 	vstr_free(&token);
+	lexer_close(&lexer);
 
 	if (rv)
 		map_free(map);
