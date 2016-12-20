@@ -32,7 +32,7 @@ void print_version(void)
 void print_usage(void)
 {
 	puts(PROGRAM_NAME " " PROGRAM_VERSION "\n"
-	     "usage: " PROGRAM_NAME " -o outfile infile...\n"
+	     "usage: " PROGRAM_NAME " [-q] -o outfile infile...\n"
 	     "    or " PROGRAM_NAME " -v\n"
 	     "    or " PROGRAM_NAME " -h");
 }
@@ -47,21 +47,32 @@ int main(int argc, char **argv)
 	int rv = 1, i;
 	input_file_t *inputs = NULL, *input, *next;
 	char *output = NULL;
+	bool read_flags = true, quiet = false;
 	map_t map;
 
 	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-v")) {
+		if (read_flags && !strcmp(argv[i], "-v")) {
 			print_version();
 			rv = 0;
 			goto out;
-		} else if (!strcmp(argv[i], "-h")) {
+		} else if (read_flags && !strcmp(argv[i], "-h")) {
 			print_usage();
 			rv = 0;
 			goto out;
-		} else if (!strcmp(argv[i], "-o")) {
+		} else if (read_flags && !strcmp(argv[i], "-q")) {
+			quiet = true;
+		} else if (read_flags && !strcmp(argv[i], "-o")) {
 			if (i + 1 >= argc) {
+			o_needs_an_argument:
 				error("-o needs an argument\n");
 				goto out;
+			}
+
+			if (!strcmp(argv[i + 1], "--")) {
+				i++;
+
+				if (i + 1 >= argc)
+					goto o_needs_an_argument;
 			}
 
 			if (output) {
@@ -71,6 +82,8 @@ int main(int argc, char **argv)
 
 			output = argv[i + 1];
 			i++;
+		} else if (read_flags && !strcmp(argv[i], "--")) {
+			read_flags = false;
 		} else {
 			input = malloc(sizeof(input_file_t));
 			if (!input) {
@@ -105,7 +118,8 @@ int main(int argc, char **argv)
 			goto out;
 		}
 
-		map_print_stats(input->path, &part);
+		if (!quiet)
+			map_print_stats(input->path, &part);
 
 		if (map_merge(&map, &part)) {
 			error("error: couldn't merge %s into %s\n",
@@ -116,7 +130,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	map_print_stats(output, &map);
+	if (!quiet)
+		map_print_stats(output, &map);
 
 	if (map_write(&map, output)) {
 		error("error: couldn't write %s\n", output);
