@@ -15,6 +15,7 @@ SRC := src/common.c \
        src/mapcat.c
 OBJ := $(SRC:src/%.c=obj/%.o)
 OUT := mapcat
+INSTALL := /usr/local/bin/mapcat
 
 all: $(OUT)
 
@@ -35,5 +36,11 @@ clean:
 	@echo "${PP_RM} ${OUT}"
 	@rm -rf ${OUT}
 
-.PHONY: clean
+install:
+	install $(OUT) $(INSTALL)
+
+uninstall:
+	rm $(INSTALL)
+
+.PHONY: clean install uninstall
 
