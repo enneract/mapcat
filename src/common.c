@@ -98,3 +98,12 @@ float vstr_atof(vstr_t *vstr)
 	vstr_termz(vstr);
 	return atof(vstr->data);
 }
+
+size_t vstr_atoz(vstr_t *vstr)
+{
+	if (!vstr->size)
+		return 0;
+
+	vstr_termz(vstr);
+	return strtoull(vstr->data, NULL, 10);
+}

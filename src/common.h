@@ -50,6 +50,7 @@ int vstr_cmp(vstr_t *vstr, const char *str);
 char *vstr_strdup(vstr_t *vstr);
 void vstr_termz(vstr_t *vstr);
 float vstr_atof(vstr_t *vstr);
+size_t vstr_atoz(vstr_t *vstr);
 
 // lexer.c
 
@@ -92,7 +93,14 @@ typedef struct {
 } brush_face_t;
 
 typedef struct {
+	size_t xres, yres;
+	float *def; // (xres * yres * 5) floats
+	char *shader;
+} brush_patch_t;
+
+typedef struct {
 	brush_face_t *faces;
+	brush_patch_t *patch;
 	elist_header_t list;
 } brush_t;
 
@@ -117,6 +125,7 @@ typedef struct {
 	// note: num_entities doesn't include the worldspawn
 	size_t num_entities, num_discarded_entities;
 	size_t num_brushes, num_discarded_brushes;
+	size_t num_patches, num_discarded_patches;
 } map_t;
 
 void map_init(map_t *map);

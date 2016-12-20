@@ -40,11 +40,17 @@ static void free_brush(brush_t *brush)
 {
 	brush_face_t *face, *face_next;
 
-	for (face = brush->faces; face; face = face_next) {
-		face_next = elist_next(face, list);
+	if (brush->patch) {
+		free(brush->patch->shader);
+		free(brush->patch->def);
+		free(brush->patch);
+	} else {
+		for (face = brush->faces; face; face = face_next) {
+			face_next = elist_next(face, list);
 
-		free(face->shader);
-		free(face);
+			free(face->shader);
+			free(face);
+		}
 	}
 
 	free(brush);
@@ -176,13 +182,109 @@ static int read_brush_face(lexer_state_t *ls, brush_t *brush)
 	return 0;
 }
 
+static int read_brush_patch_points(lexer_state_t *ls, brush_patch_t *patch)
+{
+	size_t y, x;
+
+	for (y = 0; y < patch->yres; y++) {
+		if (lexer_assert(ls, "(", "the beginning of a patch row"))
+			return 1;
+
+		for (x = 0; x < patch->xres; x++) {
+			size_t offs;
+
+			if (lexer_assert(ls, "(", "the beginning of a patch cell"))
+				return 1;
+
+			offs = (y * patch->xres + x) * 5;
+			if (lexer_get_floats(ls, patch->def + offs, 5))
+				return 1;
+
+			if (lexer_assert(ls, ")", "the end of a patch cell"))
+				return 1;
+		}
+
+		if (lexer_assert(ls, ")", "the end of a patch row"))
+			return 1;
+	}
+
+	return 0;
+}
+
+static int read_brush_patch(lexer_state_t *ls, brush_t *brush)
+{
+	if (lexer_assert(ls, "{", NULL))
+		return 1;
+
+	brush->patch = malloc(sizeof(brush_patch_t));
+	if (!brush->patch) {
+		lexer_perror(ls, "out of memory\n");
+		return 1;
+	}
+
+	memset(brush->patch, 0, sizeof(*brush->patch));
+
+	if (lexer_get_token(ls)) {
+		lexer_perror_eg(ls, "the shader name");
+		return 1;
+	}
+
+	brush->patch->shader = vstr_strdup(ls->token);
+	if (!brush->patch->shader) {
+		lexer_perror_eg(ls, "out of memory\n");
+		return 1;
+	}
+
+	if (lexer_assert(ls, "(", NULL))
+		return 1;
+
+	if (lexer_get_token(ls)) {
+		lexer_perror_eg(ls, "this patch's Y resolution");
+		return 1;
+	}
+	brush->patch->yres = vstr_atoz(ls->token);
+
+	if (lexer_get_token(ls)) {
+		lexer_perror_eg(ls, "this patch's X resolution");
+		return 1;
+	}
+	brush->patch->xres = vstr_atoz(ls->token);
+
+	brush->patch->def = malloc(sizeof(float) * brush->patch->xres *
+	                           brush->patch->yres * 5);
+	if (!brush->patch->def) {
+		lexer_perror(ls, "out of memory\n");
+		return 1;
+	}
+
+	if (lexer_assert(ls, "0", NULL) ||
+	    lexer_assert(ls, "0", NULL) ||
+	    lexer_assert(ls, "0", NULL) ||
+	    lexer_assert(ls, ")", "the end of this patch's header") ||
+	    lexer_assert(ls, "(", "the beginning of this patch's points"))
+		return 1;
+
+	if (read_brush_patch_points(ls, brush->patch))
+		return 1;
+
+	if (lexer_assert(ls, ")", "the end of this patch"))
+		return 1;
+
+	if (lexer_assert(ls, "}", "the end of this brush"))
+		return 1;
+
+	return 0;
+}
+
 static int read_brush_faces(lexer_state_t *ls, brush_t *brush)
 {
 	while (1) {
 		if (lexer_get_token(ls)) {
-			lexer_perror_eg(ls, "the beginning of a brush face "
-			                    " ('(') or the end of this brush"
-			                    " ('}')");
+		bad_token:
+			lexer_perror_eg(ls, "the beginning of a brush face, "
+			                    " \"(\", the end of this brush"
+			                    " \"}\" or the beginning of a"
+			                    " patch \"patchDef2\"");
 			return 1;
 		}
 
@@ -191,6 +293,11 @@ static int read_brush_faces(lexer_state_t *ls, brush_t *brush)
 				return 1;
 		} else if (!vstr_cmp(ls->token, "}"))
 			break;
+		else if (!vstr_cmp(ls->token, "patchDef2")) {
+			if (read_brush_patch(ls, brush))
+				return 1;
+		} else
+			goto bad_token;
 	}
 
 	return 0;
@@ -199,6 +306,9 @@ static int read_brush_faces(lexer_state_t *ls, brush_t *brush)
 static bool brush_discard(brush_t *brush)
 {
 	brush_face_t *face;
+
+	if (brush->patch)
+		return !strcmp(brush->patch->shader, MAPCAT_DISCARD_SHADER);
 
 	elist_for(face, brush->faces, list)
 		if (!strcmp(face->shader, MAPCAT_DISCARD_SHADER))
@@ -273,11 +383,19 @@ static int read_entity(lexer_state_t *ls, map_t *map)
 		}
 
 		if (brush_discard(brush)) {
+			if (brush->patch)
+				map->num_discarded_patches++;
+			else
+				map->num_discarded_brushes++;
+
 			free_brush(brush);
-			map->num_discarded_brushes++;
 		} else {
 			elist_append(&entity->brushes, brush, list);
-			map->num_brushes++;
+
+			if (brush->patch)
+				map->num_patches++;
+			else
+				map->num_brushes++;
 		}
 	}
 
@@ -303,9 +421,39 @@ error:
 // writing
 //
 
+static int write_brush_patch(FILE *fp, const brush_patch_t *patch)
+{
+	size_t y, x, i;
+
+	fprintf(fp, "patchDef2\n{\n%s\n( %zu %zu 0 0 0 )\n(\n",
+	        patch->shader, patch->yres, patch->xres);
+
+	for (y = 0; y < patch->yres; y++) {
+		fprintf(fp, "(");
+
+		for (x = 0; x < patch->xres; x++) {
+			size_t offs = (y * patch->xres + x) * 5;
+
+			fprintf(fp, " (");
+			for (i = 0; i < 5; i++)
+				fprintf(fp, " %f", patch->def[offs + i]);
+			fprintf(fp, " )");
+		}
+
+		fprintf(fp, " )\n");
+	}
+
+	fprintf(fp, ")\n}\n");
+
+	return 0;
+}
+
 static int write_brush(FILE *fp, const brush_t *brush)
 {
 	const brush_face_t *face;
+
+	if (brush->patch)
+		return write_brush_patch(fp, brush->patch);
 
 	elist_cfor(face, brush->faces, list) {
 		size_t i;
@@ -506,9 +654,21 @@ void map_print_stats(const char *path, const map_t *map)
 	ents_with_worldspawn = map->num_entities + (map->worldspawn ? 1 : 0);
 
 	printf("%s: ", path);
-	printf("%zu entit%s (%zu discarded), %zu brush%s (%zu discarded)\n",
-	       ents_with_worldspawn, (ents_with_worldspawn == 1 ? "y" : "ies"),
-	       map->num_discarded_entities,
-	       map->num_brushes, (map->num_brushes == 1 ? "" : "es"),
-	       map->num_discarded_brushes);
+
+	printf("%zu entit%s", ents_with_worldspawn,
+	       (ents_with_worldspawn == 1 ? "y" : "ies"));
+	if (map->num_discarded_entities)
+		printf(" (%zu discarded)", map->num_discarded_entities);
+
+	printf(", %zu brush%s", map->num_brushes,
+	       (map->num_brushes == 1 ? "" : "es"));
+	if (map->num_discarded_brushes)
+		printf(" (%zu discarded)", map->num_discarded_brushes);
+
+	printf(", %zu patch%s", map->num_patches,
+	       (map->num_patches == 1 ? "" : "es"));
+	if (map->num_discarded_patches)
+		printf(" (%zu discarded)", map->num_discarded_patches);
+
+	printf("\n");
 }
