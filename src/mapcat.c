@@ -672,7 +672,11 @@ int map_postprocess(map_t *map, bool filter_team_ents)
 			size_t value_len;
 
 			if (strcmp(key->key, "target") &&
-			    strcmp(key->key, "targetname"))
+			    strcmp(key->key, "targetname") &&
+			    strcmp(key->key, "team"))
+				continue;
+
+			if (!strncmp(key->value, "global_", 7))
 				continue;
 
 			value_len = strlen(key->value);
