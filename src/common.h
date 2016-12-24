@@ -112,6 +112,8 @@ typedef struct {
 
 typedef struct {
 	char *classname;
+	bool discard;
+
 	brush_t *brushes;
 	entity_key_t *keys;
 
@@ -132,6 +134,6 @@ void map_init(map_t *map);
 void map_free(map_t *map);
 int map_read(map_t *map, const char *path);
 int map_write(const map_t *map, const char *path);
-int map_postprocess(map_t *map, bool filter_team_ents);
+int map_postprocess(map_t *map);
 int map_merge(map_t *master, map_t *slave);
 void map_print_stats(const char *path, const map_t *map);

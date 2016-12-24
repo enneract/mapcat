@@ -118,8 +118,7 @@ int main(int argc, char **argv)
 			goto out;
 		}
 
-		// team_* and info_* ents are kept only in the first part
-		if (map_postprocess(&part, (input != inputs))) {
+		if (map_postprocess(&part)) {
 			map_free(&map);
 			map_free(&part);
 			goto out;

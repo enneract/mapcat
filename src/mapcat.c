@@ -102,6 +102,16 @@ static int read_entity_key(lexer_state_t *ls, entity_t *entity)
 		return 0;
 	}
 
+	if (!vstr_cmp(ls->token, "mapcat_discard")) {
+		entity->discard = true;
+
+		// make sure to read (and forget) the value
+		if (lexer_get_token(ls))
+			goto expected_key_value;
+
+		return 0;
+	}
+
 	key = malloc(sizeof(entity_key_t));
 	if (!key)
 		goto error_oom;
@@ -114,6 +124,7 @@ static int read_entity_key(lexer_state_t *ls, entity_t *entity)
 		goto error_oom;
 
 	if (lexer_get_token(ls)) {
+	expected_key_value:
 		lexer_perror_eg(ls, "the key value");
 		return 1;
 	}
@@ -281,7 +292,7 @@ static int read_brush_faces(lexer_state_t *ls, brush_t *brush)
 	while (1) {
 		if (lexer_get_token(ls)) {
 		bad_token:
-			lexer_perror_eg(ls, "the beginning of a brush face, "
+			lexer_perror_eg(ls, "the beginning of a brush face"
 			                    " \"(\", the end of this brush"
 			                    " \"}\" or the beginning of a"
 			                    " patch \"patchDef2\"");
@@ -400,6 +411,12 @@ static int read_entity(lexer_state_t *ls, map_t *map)
 	}
 
 no_brushes:
+	if (entity->discard) {
+		map->num_discarded_entities++;
+		free_entity(entity);
+		return 0;
+	}
+
 	if (!strcmp(entity->classname, "worldspawn")) {
 		if (map->worldspawn) {
 			lexer_perror(ls, "this entity is a worldspawn, but a "
@@ -619,28 +636,11 @@ out:
 	return rv;
 }
 
-int map_postprocess(map_t *map, bool filter_team_ents)
+int map_postprocess(map_t *map)
 {
 	entity_t *entity;
 	entity_key_t *key;
 	char *prefix = NULL;
-
-	if (filter_team_ents) {
-		entity_t *next;
-
-		for (entity = map->entities; entity; entity = next) {
-			next = elist_next(entity, list);
-
-			if (strncmp(entity->classname, "team_", 5) &&
-			    strncmp(entity->classname, "info_", 5))
-				continue;
-
-			map->num_entities--;
-			map->num_discarded_entities++;
-			elist_unlink(&map->entities, entity, list);
-			free_entity(entity);
-		}
-	}
 
 	if (map->worldspawn) {
 		entity_key_t *next;
