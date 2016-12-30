@@ -94,7 +94,7 @@ static int read_buffer(lexer_state_t *ls)
 				ls->in_token = false;
 				ret_token = true;
 			}
-		} else if (*ls->buf_c == '/' && ls->last == '/') {
+		} else if (*ls->buf_c == '/' && (ls->cc && ls->last == '/')) {
 			ls->in_comment = true;
 			ls->in_token = false;
 
