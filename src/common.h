@@ -31,7 +31,7 @@ Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 #endif
 
 #define PROGRAM_NAME "mapcat"
-#define PROGRAM_VERSION "0.4.0"
+#define PROGRAM_VERSION "0.4.1"
 
 #define MAPCAT_DISCARD_SHADER "common/discard"
 
